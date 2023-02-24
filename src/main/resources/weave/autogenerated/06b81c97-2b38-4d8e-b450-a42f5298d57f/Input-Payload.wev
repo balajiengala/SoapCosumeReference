@@ -1,0 +1,4 @@
+%dw 2.0
+
+type auto_06b81c97_2b38_4d8e_b450_a42f5298d57f_Input_Payload = {| validator: String |}
+

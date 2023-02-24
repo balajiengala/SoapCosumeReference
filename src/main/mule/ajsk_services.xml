@@ -1,0 +1,415 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit" xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:wsc="http://www.mulesoft.org/schema/mule/wsc" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd  http://www.mulesoft.org/schema/mule/wsc http://www.mulesoft.org/schema/mule/wsc/current/mule-wsc.xsd http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
+    <http:listener-config name="ajsk_services-httpListenerConfig">
+        <http:listener-connection host="0.0.0.0" port="8081" />
+    </http:listener-config>
+    <apikit:config name="ajsk_services-config" api="ajsk_services.raml" outboundHeadersMapName="outboundHeaders" httpStatusVarName="httpStatus" />
+    <wsc:config name="Web_Service_Consumer_Config" doc:name="Web Service Consumer Config" doc:id="c04ddc0a-dd03-4461-8283-3fd02398749e">
+        <wsc:connection soapVersion="SOAP12" wsdlLocation="https://nadakacheri.karnataka.gov.in/sms_ws/WebService.asmx?wsdl" service="WebService" port="WebServiceSoap12" address="https://nadakacheri.karnataka.gov.in/sms_ws/WebService.asmx" />
+    </wsc:config>
+    <db:config name="Database_Config" doc:name="Database Config" doc:id="95c49b39-6ec6-4185-914e-ba7365c83a61">
+        <db:my-sql-connection host="172.31.41.232" port="3306" user="root" />
+    </db:config>
+    <flow name="ajsk_services-main">
+        <http:listener config-ref="ajsk_services-httpListenerConfig" path="/api/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:error-response>
+        </http:listener>
+        <logger level="INFO" doc:name="AJSK-Main-logger" doc:id="73d972ed-d353-4941-aed4-773f09e0a1ac" message="&gt;&gt;&gt;&gt;Main-Flow Started::::::::::::::::" />
+        <set-variable value="#[payload]" doc:name="setting-Original-payload" doc:id="e07ef84c-e373-4455-a800-ec27d6cfde70" variableName="originalpayload" />
+        <apikit:router config-ref="ajsk_services-config" />
+        <error-handler>
+            <on-error-propagate type="APIKIT:BAD_REQUEST">
+                <ee:transform xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Bad request"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">400</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_FOUND">
+                <ee:transform xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Resource not found"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">404</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:METHOD_NOT_ALLOWED">
+                <ee:transform xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Method not allowed"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">405</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_ACCEPTABLE">
+                <ee:transform xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Not acceptable"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">406</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:UNSUPPORTED_MEDIA_TYPE">
+                <ee:transform xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Unsupported media type"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">415</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_IMPLEMENTED">
+                <ee:transform xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Not Implemented"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">501</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+    <flow name="ajsk_services-console">
+        <http:listener config-ref="ajsk_services-httpListenerConfig" path="/console/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:console config-ref="ajsk_services-config" />
+        <error-handler>
+            <on-error-propagate type="APIKIT:NOT_FOUND">
+                <ee:transform xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Resource not found"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">404</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+    <flow name="post:\GetRd_Details:application\xml:ajsk_services-config">
+        <flow-ref doc:name="Flow Referring Client Validation and Time Validation" doc:id="691bf8e0-641f-41f9-8e36-0aa88dc55e85" name="client-and-time-validation" />
+        <async doc:name="Async" doc:id="392b586d-1ac5-4a9d-af4d-de9c1473bf72" >
+			<ee:transform doc:name="Defining Publisher and subscriber" doc:id="d7963026-56fb-4f98-9434-5cf9e18f9ca6" >
+				<ee:message />
+				<ee:variables >
+					<ee:set-variable variableName="Appname" ><![CDATA[%dw 2.0
+output application/java
+---
+'Ajsk-Services']]></ee:set-variable>
+					<ee:set-variable variableName="publisher" ><![CDATA[%dw 2.0
+output application/java
+---
+'Ajsk-GetRd-Details']]></ee:set-variable>
+				</ee:variables>
+			</ee:transform>
+			<flow-ref doc:name="Flow Referring to Common-Audit-Subflow" doc:id="e0762408-0c04-4271-b0e7-41e497c96e80" name="common_audit_Sub_Flow"/>
+		</async>
+		<set-variable value="AJSK-GetXmlDataWoDSCV" doc:name="Defining The API Name" doc:id="c9aac725-2c4a-4d23-a741-16c8146697c6" variableName="ApiName" />
+        <logger level="INFO" doc:name="Start fetching API-id by API Name" doc:id="7c34f2cf-e68f-4bca-a2dc-623c81b79baa" message="Start-Fetching-the-Api-ID Based On the Api-Name" />
+        <flow-ref doc:name="Flow Referring to CommonFlow-Fetch-ApiId-ApiName" doc:id="8b7aff90-8e9d-4ebe-b8c9-36c5dc430c82" name="CommonFlow-Fetch-ApiId-ApiName" />
+        <try doc:name="Try" doc:id="cf19040d-6346-45a8-96bb-35e4b3747617">
+            <ee:transform doc:name="client and API validation step" doc:id="001019f0-1bd1-4208-aebf-d88634d10cc5">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+"validator": (((vars.APIID splitBy  ",")[0 to -1]) contains vars.CapturedDataBaseAPIID)as String
+}]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+            <error-handler>
+                <on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="c5b4aa73-db27-4820-9880-52e2ff27098e">
+                    <raise-error doc:name="Raise error" doc:id="000214f3-ef77-426a-b384-731cec3bc890" type="ANY:SECURITY" description="&quot;The Client Has No Permission To invoke this APi&quot;" />
+                    <ee:transform doc:name="Transform Message" doc:id="706405bb-b6e0-4033-96ca-5f78c1d4e41b">
+                        <ee:message>
+                            <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"Failure-Description": "The Client Has No Permission To invoke this APi"
+}]]></ee:set-payload>
+                        </ee:message>
+                    </ee:transform>
+                </on-error-propagate>
+            </error-handler>
+        </try>
+        <flow-ref doc:name="Flow Reference for API-Code and ClientCode Validation" doc:id="e8ddf52e-7ae9-4775-b41f-be04112125ac" name="common-clientcode-ApiCode-validation" />
+        <ee:transform doc:name="Request-Input-to-consume-GetXmlDataWoDSCV" doc:id="097209f9-d3b3-4254-9be7-2b2ff2d58049">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/xml
+ns ns0 http://tempuri.org/
+---
+{
+	ns0#GetXmlDataWoDSCV: {
+		ns0#GSC_No: vars.originalpayload.Request.GSC_No
+	}
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <try doc:name="Try" doc:id="43cb858f-12a3-4b77-9eba-a018f7c0a10f">
+            <wsc:consume doc:name="Consume-AJSK-Get-XML-Wo-DSCV" doc:id="e2933f93-2851-49d4-9db7-280aae455c55" config-ref="Web_Service_Consumer_Config" operation="GetXmlDataWoDSCV" />
+            <error-handler>
+                <on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="9f7b0292-a39f-4a79-aa2f-872f7a537afa" type="ANY">
+                    <ee:transform doc:name="Transform Message" doc:id="ab3d6c64-215c-40ae-9618-bd5a3245321c">
+                        <ee:message>
+                            <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	FailureDescription: error.description
+}]]></ee:set-payload>
+                        </ee:message>
+                    </ee:transform>
+                </on-error-propagate>
+            </error-handler>
+        </try>
+        <try doc:name="Try" doc:id="3bc425bb-11be-45c7-aeb3-9e3aad42dbc5">
+            <ee:transform doc:name="Transform-XML" doc:id="ddd7be36-62c1-438f-b743-da4e5bc69e0d">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/xml
+---
+xmlData: payload.body.GetXmlDataWoDSCVResponse.GetXmlDataWoDSCVResult.SMSWSOP.xmlData]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+            <error-handler>
+                <on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="0288073b-8776-46f0-adca-c2e19cf97ecd" type="ANY">
+                    <raise-error doc:name="Raise error" doc:id="67e630ac-37f2-46e4-955b-281b1eff815f" type="CUSTOM: THE GSC_NO IS INVALID" description="THE PROVIDED GSC NUMBER IS INVALID" />
+                </on-error-propagate>
+            </error-handler>
+        </try>
+        <logger level="INFO" doc:name="Logging the Final-Payload" doc:id="e8a3c0cc-b252-4fe4-b910-5d018b9846e5" message="&gt;&gt;&gt;&gt;&gt;The Payload After Transformation:::&gt;&gt;&gt;&gt;&gt;is #[payload]" />
+        <error-handler>
+            <on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="11df8002-7163-4b98-ad8e-9f8f370f0b92">
+                <ee:transform doc:name="Transform Message" doc:id="aea3d6dd-81a3-4d6d-b434-5383757fe1bb">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"error": error.description
+}]]></ee:set-payload>
+                    </ee:message>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+    <flow name="client-and-time-validation" doc:id="634042e4-5291-47b9-b5cd-6ac968abb12c">
+        <db:select doc:name="Select" doc:id="90818272-23ae-43aa-bfcf-2df5ae960fce" config-ref="Database_Config">
+            <db:sql><![CDATA[select * from esb_schema.clients WHERE ClientId =:Clientsecret]]></db:sql>
+            <db:input-parameters><![CDATA[#[{
+	"Clientsecret": vars.originalpayload.Request.ClientSecretCode
+}]]]></db:input-parameters>
+        </db:select>
+        <set-variable value="#[payload.APIID[0]]" doc:name="Set Variable" doc:id="a3d7a60a-ca0e-4d55-877f-129ad6be6246" variableName="APIID" />
+        <ee:transform doc:name="client validation" doc:id="61bab975-4d97-4bbb-87b3-558bf838ad3a">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload reduce $]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <choice doc:name="Choice" doc:id="fffbcd81-19f7-4412-8611-236366738ba5">
+            <when expression="#[payload != null]">
+                <logger level="INFO" doc:name="Logger" doc:id="d40b8989-bd8b-4960-9fbf-dbaef79e0767" message="flow&gt;&gt;&gt;routing Continues" />
+            </when>
+            <otherwise>
+                <try doc:name="Try" doc:id="dd770b68-695d-4471-b9d0-b5ca3d99d317">
+                    <raise-error doc:name="Raise error" doc:id="d52b8adb-a7c6-41d3-ad4c-a60ea4b21a8d" type="ANY:SECURITY" description="The Provided Client Secret  is Not Valid:::::" />
+                    <error-handler>
+                        <on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="fbe7dca3-e07d-4374-bb0d-6c44fbe2a142">
+                            <ee:transform doc:name="Transform Message" doc:id="8912df81-60ac-441f-b3a1-f96a3484ab00">
+                                <ee:message>
+                                    <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"Failure-Description": "The Provided Client Secret  is Not Valid:::::"
+}]]></ee:set-payload>
+                                </ee:message>
+                            </ee:transform>
+                        </on-error-propagate>
+                    </error-handler>
+                </try>
+            </otherwise>
+        </choice>
+        <logger level="INFO" doc:name="Logger" doc:id="d0def912-6f09-4de7-b860-4db9508ac19a" message="Time Validation Had Started and the StartTime and EndTime Assosciated with the Client are  StartTime === #[payload.StartTime]  EndTime ===#[payload.EndTime]" />
+        <ee:transform doc:name="Time-Validation" doc:id="8c5f35da-d4a5-4d90-a454-88421df91dc5">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+var startTime = payload.StartTime as Time
+var endTime = payload.EndTime as Time
+
+fun validate(time: Time) =
+  (((time - startTime) as Number > 0) and ((endTime - time) as Number > 0))
+output application/json  
+---
+{
+  validation: validate((now() >> "IST") [11 to 18] as Time),
+  startTime: startTime ,
+  endTime: endTime ,
+  IST: (now() >> "IST") [11 to 18],
+  istastime: (now() >> "IST") [11 to 18] as Time
+
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <ee:transform doc:name="boolean to string" doc:id="e440bcc0-38ec-4b51-9768-46978af0fd37">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"validationvalue" : payload.validation as String
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <choice doc:name="Choice" doc:id="b35f58c1-5fe2-4aae-a7c0-b7f4c3f6332b">
+            <when expression="#[payload.validationvalue == &quot;true&quot;]">
+                <logger level="INFO" doc:name="Logger" doc:id="04681e59-e970-4291-ae18-6725b03ceac6" message="Time-Validation is Successful:::" />
+            </when>
+            <otherwise>
+                <try doc:name="Try" doc:id="0a95d444-16ac-459b-b196-a19a0df97f8d">
+                    <raise-error doc:name="Raise error" doc:id="213f0099-306c-4253-b78d-42f1fff0fcdc" type="ANY:SECURITY" description="Access Denied::-&gt; Unpermitted Time intervals::::" />
+                    <error-handler>
+                        <on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="d95ccb99-790e-4d85-ac75-79ae7842ca1f">
+                            <ee:transform doc:name="Transform Message" doc:id="257c23f4-c0bc-4e1d-a438-6e3f0697ebb7">
+                                <ee:message>
+                                    <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"Failure-Description": "Access Denied::-> UnPermitted Time intervals."
+}]]></ee:set-payload>
+                                </ee:message>
+                            </ee:transform>
+                        </on-error-propagate>
+                    </error-handler>
+                </try>
+            </otherwise>
+        </choice>
+        <logger level="INFO" doc:name="Logger" doc:id="d3f1b67f-e72e-468d-b6ad-b60d72fa0bf4" message="Done With Both Client and Time Validations" />
+    </flow>
+    <flow name="CommonFlow-Fetch-ApiId-ApiName" doc:id="c5eca5db-3b83-4dad-bc9b-8a3a264625c8">
+        <logger level="INFO" doc:name="Logger" doc:id="967273c2-e3fb-4ffb-b602-821e73db8627" message="Start Fetching-APiID-By-API-Name Flow::::::&gt;&gt;&gt;From the Database" />
+        <db:select doc:name="Select API-id" doc:id="2d2b42f8-ac9d-4743-866b-fcb7409d6e83" config-ref="Database_Config">
+            <db:sql><![CDATA[select * from esb_schema.ApiMaster WHERE ApiName =:APINAME]]></db:sql>
+            <db:input-parameters><![CDATA[#[{
+	"APINAME": vars.ApiName
+}]]]></db:input-parameters>
+        </db:select>
+        <set-variable value="#[payload[0].APIID]" doc:name="API-id-capturing" doc:id="5d044d3a-6f7e-4858-a103-1ed067ce7d4c" variableName="CapturedDataBaseAPIID" />
+        <logger level="INFO" doc:name="Logger" doc:id="65411c1e-6541-41cc-b53e-d3fa51a7eaa7" message="API-id is fetched now From the dataBase:::The result from the Database is #[payload]" />
+        <error-handler>
+            <on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="c6062ba6-ca5e-478f-be6f-265c4651574d" type="ANY">
+                <ee:transform doc:name="Transform Message" doc:id="a383d56f-554d-4ab9-9361-3afebc440732">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"error": error.description,
+	"failingComponent":  error.failingComponent,
+	"errorDetailed-Description":  error.detailedDescription
+}]]></ee:set-payload>
+                    </ee:message>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+    <flow name="common-clientcode-ApiCode-validation" doc:id="06b81c97-2b38-4d8e-b450-a42f5298d57f">
+        <logger level="INFO" doc:name="Logger" doc:id="43b72a5a-3b25-4781-a68c-2c3fa0479ab2" message="The validator response is #[payload.validator]" />
+        <choice doc:name="Choice" doc:id="27b6b35b-b88e-43c8-99b4-8ac703cd6475">
+            <when expression="#[payload.validator == &quot;true&quot;]">
+                <logger level="INFO" doc:name="Logger" doc:id="dbe7bd6c-c500-42f8-bff7-52b76e8dec01" message="The API-ID Got Validated With the Client-ID:::::::" />
+            </when>
+            <otherwise>
+                <try doc:name="Try" doc:id="399bf07f-31fd-4e6b-bdcb-dbcc88eb3657">
+                    <raise-error doc:name="Raise error" doc:id="3b0c1a9a-a424-4077-ba23-db32830f4439" type="ANY:SECURITY" description="The Client Has No Permission To Make use of  this APi" />
+                    <error-handler>
+                        <on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="3a56df32-b9a9-42b4-bbd5-6eeae1a76bb2" type="ANY">
+                            <ee:transform doc:name="Transform Message" doc:id="0c069bf2-7ce4-4903-ad21-b3b5546db704">
+                                <ee:message>
+                                    <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"Failure-Description": "The Client Has No Permission To make use of this APi"
+}]]></ee:set-payload>
+                                </ee:message>
+                                <ee:variables>
+                                    <ee:set-variable variableName="httpStatus"><![CDATA[401]]></ee:set-variable>
+                                </ee:variables>
+                            </ee:transform>
+                        </on-error-propagate>
+                    </error-handler>
+                </try>
+            </otherwise>
+        </choice>
+    </flow>
+    <flow name="Unused-ReferenceCode-Notbeingused" doc:id="3ffcff97-3eb6-4c47-a240-942364b100c5">
+        <try doc:name="Copy_of_Try" doc:id="05e3a2f5-b6f2-4f90-971f-a3769c510c00">
+            <ee:transform doc:name="Copy_of_Read and Transform XML string into Json-Data" doc:id="6b8e6a8b-4747-4e38-a7a5-a8bf809629c7">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+read((payload.body.GetXmlDataWoDSCVResponse.GetXmlDataWoDSCVResult.SMSWSOP.xmlData), 'application/xml')]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+            <error-handler>
+                <on-error-propagate enableNotifications="true" logException="true" doc:name="Copy_of_On Error Propagate" doc:id="ddda15fa-7896-46c2-a69a-f893c8be2f5a">
+                    <raise-error doc:name="Copy_of_Raise error" doc:id="b02ceded-9fc5-4a35-a941-994f3b808266" type="CUSTOM: INVALID_OPERATION" description="THE RD-NUMBER IS INCORRECT" />
+                </on-error-propagate>
+            </error-handler>
+        </try>
+    </flow>
+</mule>
